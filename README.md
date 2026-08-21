@@ -59,13 +59,13 @@ The lab currently covers:
 
 The project starts with a dedicated Debian 12 virtual machine running inside Oracle VirtualBox.
 
-The VM is intentionally kept relatively lightweight because the server is primarily designed to be administered from the command line.
+The VM is intentionally kept lightweight because the server is primarily designed to be administered from the command line.
 
 During installation, only the required Debian components and standard system utilities were selected.
 
-![Debian installation](docs/screenshots/01-debian-installation.png)
+![Debian installation](screenshots/01-debian-installation.png)
 
-![Software selection](docs/screenshots/02-software-selection.png)
+![Software selection](screenshots/02-software-selection.png)
 
 ---
 
@@ -87,7 +87,7 @@ These commands verify:
 - available network interfaces;
 - detected block devices and partitions.
 
-![Initial system verification](docs/screenshots/03-verification-systeme-initial.png)
+![Initial system verification](screenshots/03-verification-systeme-initial.png)
 
 At this point, the Debian installation is operational and the main system disk is correctly detected.
 
@@ -112,7 +112,7 @@ usermod -aG sudo mera
 groups mera
 ```
 
-![Sudo installation and configuration](docs/screenshots/04-installation-configuration-sudo.png)
+![Sudo installation and configuration](screenshots/04-installation-configuration-sudo.png)
 
 After reconnecting the user session, privilege escalation was tested:
 
@@ -126,7 +126,7 @@ Expected result:
 root
 ```
 
-![Sudo verification](docs/screenshots/05-verification-acces-root-sudo.png)
+![Sudo verification](screenshots/05-verification-acces-root-sudo.png)
 
 The server can now be administered without using the root account for normal operations.
 
@@ -146,7 +146,7 @@ Data disk
 └── Application and service data
 ```
 
-![VirtualBox data disk](docs/screenshots/06-ajout-disque-virtuel-20go.png)
+![VirtualBox data disk](screenshots/06-ajout-disque-virtuel-20go.png)
 
 After booting Debian, the new disk was detected with:
 
@@ -160,13 +160,13 @@ The additional disk appears as:
 /dev/sdb
 ```
 
-![Second disk detection](docs/screenshots/07-detection-second-disque.png)
+![Second disk detection](screenshots/07-detection-second-disque.png)
 
 ---
 
 ## 5. Disk Partitioning
 
-The new disk initially contained no partition table.
+The new disk initially contained no partition.
 
 It was partitioned using `fdisk`:
 
@@ -182,11 +182,9 @@ The resulting partition is:
 /dev/sdb1
 ```
 
-![Disk partitioning](docs/screenshots/08-partitionnement-disque-sdb.png)
+![Disk partitioning](screenshots/08-partitionnement-disque-sdb.png)
 
-The screenshot also documents an incorrect input made during the interactive `fdisk` process before the partition was successfully created.
-
-Keeping this step documented reflects the actual troubleshooting process rather than presenting an artificially perfect installation.
+This step also provided practical experience with the interactive `fdisk` interface and verification of the resulting partition using `lsblk`.
 
 ---
 
@@ -204,9 +202,9 @@ The resulting filesystem was verified with:
 lsblk -f
 ```
 
-![ext4 filesystem creation](docs/screenshots/09-formatage-ext4-sdb1.png)
+![ext4 filesystem creation](screenshots/09-formatage-ext4-sdb1.png)
 
-The dedicated data partition is now ready to be mounted.
+At this stage, `/dev/sdb1` has a valid filesystem but is not yet integrated into the Linux directory tree.
 
 ---
 
@@ -218,7 +216,7 @@ A dedicated mount point was created:
 sudo mkdir -p /srv/data
 ```
 
-The new filesystem was then mounted:
+The filesystem was then mounted:
 
 ```bash
 sudo mount /dev/sdb1 /srv/data
@@ -231,13 +229,13 @@ lsblk
 df -h /srv/data
 ```
 
-![Data disk mounting](docs/screenshots/10-montage-disque-srv-data.png)
+![Data disk mounting](screenshots/10-montage-disque-srv-data.png)
 
-The screenshot also shows a failed initial mount attempt caused by the absence of the expected mount point.
+An initial mount attempt failed because the expected mount point was missing.
 
-The directory was recreated and the mount completed successfully.
+After recreating `/srv/data`, the filesystem mounted correctly.
 
-This provides a useful example of basic Linux storage troubleshooting.
+This provided a simple example of troubleshooting a Linux mount operation.
 
 ---
 
@@ -253,13 +251,13 @@ First, its UUID was retrieved:
 sudo blkid /dev/sdb1
 ```
 
-The configuration follows this structure:
+The `/etc/fstab` entry follows this structure:
 
 ```text
 UUID=<FILESYSTEM-UUID> /srv/data ext4 defaults 0 2
 ```
 
-Using a filesystem UUID instead of `/dev/sdb1` avoids depending on a device name that could theoretically change.
+Using the filesystem UUID instead of `/dev/sdb1` avoids relying on a device name that could potentially change.
 
 After modifying `/etc/fstab`, systemd was reloaded:
 
@@ -267,98 +265,105 @@ After modifying `/etc/fstab`, systemd was reloaded:
 sudo systemctl daemon-reload
 ```
 
-The configuration was then tested:
+The configuration was tested **before rebooting**:
 
 ```bash
 sudo mount -a
 lsblk
+df -h /srv/data
 ```
 
-![Persistent mount configuration](docs/screenshots/11-montage-persistant-fstab.png)
+![Persistent mount configuration](screenshots/11-montage-persistant-fstab.png)
 
-The disk is now automatically mounted on:
+A reboot was then performed to confirm that `/srv/data` was mounted automatically.
 
-```text
-/srv/data
-```
+The dedicated data disk is therefore persistent across system restarts.
 
 ---
 
 ## 9. Storage Permissions
 
-Initially, `/srv/data` was owned by `root`, preventing the regular user from writing to the directory.
+After mounting the filesystem, `/srv/data` was owned by `root`.
 
-A dedicated Linux group was created:
+A regular user therefore could not initially create files inside it.
+
+Instead of granting overly permissive rights, a dedicated Linux group was created:
 
 ```bash
 sudo groupadd homelab
 ```
 
-The administrative user was added to it:
+The administrative user was added to this group:
 
 ```bash
 sudo usermod -aG homelab mera
 ```
 
-The storage directory ownership was then changed:
+The directory ownership was then configured:
 
 ```bash
 sudo chown root:homelab /srv/data
 ```
 
-Permissions were configured with:
+Permissions were applied using:
 
 ```bash
 sudo chmod 2775 /srv/data
 ```
 
-![Storage permissions](docs/screenshots/12-configuration-permissions-srv-data.png)
+![Storage permissions](screenshots/12-configuration-permissions-srv-data.png)
 
-The leading `2` enables the **setgid bit** on the directory.
+The leading `2` enables the **setgid bit**.
 
-As a result, files and directories created inside `/srv/data` inherit the `homelab` group, making the directory suitable for future services that need shared access to the data volume.
+This means that new files and directories created inside `/srv/data` inherit the `homelab` group.
+
+This provides a cleaner permission model than granting unrestricted access to every local user.
 
 ---
 
 ## 10. Write Access Validation
 
-After reconnecting the user session so that the new group membership became active, write access was tested without `sudo`.
+After reconnecting the user session so that the new group membership became active, write access was tested without `sudo`:
 
 ```bash
 touch /srv/data/test.txt
 ```
 
-The result was checked with:
+The resulting file was inspected:
 
 ```bash
 ls -l /srv/data
 ```
 
-![Write access validation](docs/screenshots/13-test-ecriture-srv-data.png)
+![Write access validation](screenshots/13-test-ecriture-srv-data.png)
 
-The file was successfully created by the regular user and inherited the `homelab` group.
+The test file was successfully created by the regular user and inherited the `homelab` group.
 
-This confirms that the permission model works as intended.
+This confirms that the storage permissions work as intended.
 
 ---
 
 ## 11. SSH Remote Administration
 
-OpenSSH is installed and running on the server.
+OpenSSH was installed during the Debian installation and verified after the server foundation was complete.
 
-The service can be checked with:
+The SSH service was checked using:
 
 ```bash
 systemctl status ssh
 ```
 
-The listening SSH socket can also be verified with:
+The listening SSH socket was also verified:
 
 ```bash
 ss -tulpn | grep :22
 ```
 
-Remote connectivity from the host machine was successfully tested.
+The VM network configuration was changed from VirtualBox NAT to **Bridged Networking**, allowing the server to communicate directly with the local network.
+
+Remote connectivity from the Windows host was successfully tested.
+
+SSH host identity was verified by comparing the server's Ed25519 fingerprint before accepting the first connection.
 
 SSH key authentication was then configured using an **Ed25519 key pair**.
 
@@ -368,28 +373,36 @@ The public key is stored on the server in:
 ~/.ssh/authorized_keys
 ```
 
+with restrictive permissions:
+
+```text
+~/.ssh              700
+authorized_keys     600
+```
+
 The associated private key remains exclusively on the client machine and is **never stored in this repository**.
 
-Screenshots containing unnecessary network addressing or SSH connection information are intentionally excluded from the public documentation.
+Screenshots from this section are intentionally excluded because they contain unnecessary local network and SSH connection information.
 
 ---
 
 ## 🔐 Security Principles
 
-This lab is not intended to represent a fully hardened production environment yet.
+This lab is not yet intended to represent a fully hardened production server.
 
-However, several basic security principles are already applied:
+However, several security principles are already applied:
 
 - daily administration from a non-root account;
 - privilege escalation through `sudo`;
 - SSH key authentication;
+- restrictive permissions on SSH configuration files;
 - separation between system and data storage;
-- dedicated group-based storage permissions;
+- group-based storage permissions;
 - no passwords stored in the repository;
 - no SSH private keys stored in the repository;
 - unnecessary network information excluded from public screenshots.
 
-Further hardening will be implemented as the lab evolves.
+SSH hardening will be continued in the next phase.
 
 ---
 
@@ -408,9 +421,9 @@ homeserver-lab
             └── /srv/data
 ```
 
-The system and application data are therefore separated across two virtual disks.
+The operating system and application data are therefore separated across two virtual disks.
 
-`/srv/data` will serve as the main storage location for future self-hosted services.
+`/srv/data` will serve as the main persistent storage location for future self-hosted services.
 
 ---
 
@@ -418,12 +431,14 @@ The system and application data are therefore separated across two virtual disks
 
 ```text
 ┌─────────────────────────────┐
-│         Host Machine        │
+│        Windows Host         │
 │                             │
 │      Oracle VirtualBox      │
+│                             │
+│        SSH Client           │
 └──────────────┬──────────────┘
                │
-               │ Virtual Network
+               │ Local Network
                │
 ┌──────────────▼──────────────┐
 │       homeserver-lab        │
@@ -433,28 +448,28 @@ The system and application data are therefore separated across two virtual disks
 │  │     OpenSSH Server    │  │
 │  └───────────────────────┘  │
 │                             │
-│  System: /dev/sda           │
-│  Data:   /dev/sdb1          │
-│          ↓                  │
-│       /srv/data             │
+│  System : /dev/sda          │
+│  Data   : /dev/sdb1         │
+│             ↓               │
+│          /srv/data          │
 └─────────────────────────────┘
 ```
 
-This architecture is deliberately simple for the first stage of the project.
+This architecture is deliberately simple during the first stage of the project.
 
-The server foundation can now be used to deploy additional infrastructure and services.
+The server foundation can now be used to deploy additional infrastructure and self-hosted services.
 
 ---
 
 ## 🛠️ Troubleshooting Encountered
 
-The lab was built manually rather than from a preconfigured image, which exposed several useful problems during setup.
+The lab was built manually rather than from a preconfigured server image.
+
+Several useful issues were encountered during the process.
 
 ### `sudo` unavailable
 
 The initial Debian installation did not provide `sudo`.
-
-Solution:
 
 ```bash
 su -
@@ -463,20 +478,22 @@ apt install sudo
 usermod -aG sudo mera
 ```
 
-### Data mount point missing
+After reconnecting, `sudo` worked correctly.
 
-An initial attempt to mount the data partition failed because `/srv/data` did not exist.
+### Missing mount point
 
-Solution:
+An attempt to mount the data filesystem failed because `/srv/data` was missing.
 
 ```bash
 sudo mkdir -p /srv/data
 sudo mount /dev/sdb1 /srv/data
 ```
 
+The filesystem then mounted successfully.
+
 ### Permission denied on `/srv/data`
 
-The regular user initially could not create files in the data directory.
+The regular user initially could not create files inside the data directory.
 
 A dedicated group and setgid permissions were configured:
 
@@ -489,42 +506,61 @@ sudo chmod 2775 /srv/data
 
 After reconnecting the user session, write access worked correctly.
 
-These issues are intentionally documented because troubleshooting is part of the purpose of the homelab.
+### SSH password authentication failure
+
+SSH connectivity worked, but password authentication initially failed.
+
+Server logs confirmed:
+
+```text
+Failed password for <user>
+```
+
+The issue was traced to a keyboard-layout difference between the Debian console and Windows when entering numeric characters.
+
+After correcting the password, SSH authentication worked normally.
+
+SSH key authentication was subsequently configured to avoid relying on the account password for routine remote administration.
 
 ---
 
 ## 🗺️ Roadmap
 
-### Phase 1 — Server Foundation
+### Phase 1 — Server Foundation ✅
 
 - [x] Debian installation
 - [x] Administrative privileges
-- [x] Dedicated storage
-- [x] Persistent filesystem
-- [x] Group permissions
+- [x] Dedicated data disk
+- [x] Partitioning
+- [x] ext4 filesystem
+- [x] Persistent mounting
+- [x] Group-based permissions
+- [x] Write access validation
 - [x] SSH access
 - [x] SSH key authentication
 
 ### Phase 2 — Server Hardening
 
-- [ ] Harden SSH configuration
-- [ ] Disable unnecessary authentication methods
+- [ ] Disable SSH password authentication
+- [ ] Disable direct root SSH login
+- [ ] Review SSH configuration
 - [ ] Configure a firewall
 - [ ] Review exposed services
 - [ ] Configure automatic security updates
 
 ### Phase 3 — Services
 
-- [ ] Install a container runtime
+- [ ] Install Docker
+- [ ] Organize persistent container data
 - [ ] Deploy initial self-hosted services
-- [ ] Organize persistent application data
 - [ ] Configure service networking
+- [ ] Evaluate remote-access solutions
 
 ### Phase 4 — Operations
 
 - [ ] Implement backups
 - [ ] Add monitoring
-- [ ] Centralize logs
+- [ ] Review logs and alerts
 - [ ] Document recovery procedures
 - [ ] Introduce configuration automation
 
@@ -537,22 +573,27 @@ debian-homeserver-lab/
 │
 ├── README.md
 │
-└── docs/
-    └── screenshots/
-        ├── 01-debian-installation.png
-        ├── 02-software-selection.png
-        ├── 03-verification-systeme-initial.png
-        ├── 04-installation-configuration-sudo.png
-        ├── 05-verification-acces-root-sudo.png
-        ├── 06-ajout-disque-virtuel-20go.png
-        ├── 07-detection-second-disque.png
-        ├── 08-partitionnement-disque-sdb.png
-        ├── 09-formatage-ext4-sdb1.png
-        ├── 10-montage-disque-srv-data.png
-        ├── 11-montage-persistant-fstab.png
-        ├── 12-configuration-permissions-srv-data.png
-        └── 13-test-ecriture-srv-data.png
+├── notes/
+├── kb/
+├── commands/
+│
+└── screenshots/
+    ├── 01-debian-installation.png
+    ├── 02-software-selection.png
+    ├── 03-verification-systeme-initial.png
+    ├── 04-installation-configuration-sudo.png
+    ├── 05-verification-acces-root-sudo.png
+    ├── 06-ajout-disque-virtuel-20go.png
+    ├── 07-detection-second-disque.png
+    ├── 08-partitionnement-disque-sdb.png
+    ├── 09-formatage-ext4-sdb1.png
+    ├── 10-montage-disque-srv-data.png
+    ├── 11-montage-persistant-fstab.png
+    ├── 12-configuration-permissions-srv-data.png
+    └── 13-test-ecriture-srv-data.png
 ```
+
+The `notes/`, `kb/` and `commands/` directories will progressively contain detailed documentation, troubleshooting records and reusable Linux commands.
 
 ---
 
@@ -562,9 +603,9 @@ This project is a **personal learning homelab**, not a production deployment gui
 
 Configurations are documented as they are implemented and may evolve as the environment becomes more secure and complex.
 
-Passwords, private SSH keys and other authentication secrets must never be committed to this repository.
+Passwords, private SSH keys, tokens and other authentication secrets must never be committed to this repository.
 
-Some network information is also intentionally excluded from screenshots when it is not necessary to demonstrate the technical configuration.
+Network information that is unnecessary to demonstrate the technical configuration is intentionally excluded from the public documentation.
 
 ---
 
@@ -572,7 +613,7 @@ Some network information is also intentionally excluded from screenshots when it
 
 The objective is not simply to run self-hosted applications.
 
-The project is intended to provide practical experience with:
+This project is intended to build practical experience with:
 
 - Linux administration;
 - storage and filesystems;
@@ -585,4 +626,4 @@ The project is intended to provide practical experience with:
 - automation;
 - infrastructure documentation.
 
-Each new component will be added progressively and documented in this repository.
+Each new component will be added progressively, tested and documented in this repository.
