@@ -61,11 +61,13 @@ The project starts with a dedicated Debian 12 virtual machine running inside Ora
 
 The VM is intentionally kept lightweight because the server is primarily designed to be administered from the command line.
 
+The virtual machine was configured with the resources required for the lab environment.
+
+![VirtualBox VM configuration](screenshots/01-virtualbox-vm-configuration.png)
+
 During installation, only the required Debian components and standard system utilities were selected.
 
-![Debian installation](screenshots/01-debian-installation.png)
-
-![Software selection](screenshots/02-software-selection.png)
+![Debian software selection](screenshots/02-debian-software-selection.png)
 
 ---
 
@@ -578,8 +580,8 @@ debian-homeserver-lab/
 ├── commands/
 │
 └── screenshots/
-    ├── 01-debian-installation.png
-    ├── 02-software-selection.png
+    ├── 01-virtualbox-vm-configuration.png
+    ├── 02-debian-software-selection.png
     ├── 03-verification-systeme-initial.png
     ├── 04-installation-configuration-sudo.png
     ├── 05-verification-acces-root-sudo.png
